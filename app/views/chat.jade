@@ -1,0 +1,106 @@
+extends ./layouts/default
+block head
+    script(src='/socket.io/socket.io.js')
+    script(type='text/javascript').
+        $(document).ready(function () {
+            //socket
+            var socket = io.connect(":#{port}/chat");
+
+
+            //监听连接的所有客户端
+            socket.on("public clients", function (data) {
+                var sid =socket.id;
+                $("#selClient").empty();
+                for(var d in data){
+                    addSelClient(data[d].key, data[d].text);
+                }
+                //移除自己
+                var currentLoginId = $("#selClient option[value='"+sid+"']");
+                currentLoginId.remove();
+                var loginId = currentLoginId.text();
+                $("#loginIdH").html("<small>当前用户名:</small>" + "<span id='loginId'>"+loginId+"</span>");
+            });
+            //监听断开连接的客户端
+            socket.on("public client disconnect", function (data) {
+                $("#selClient option[value='"+data.key+"']").remove();
+            });
+
+            //监听发送的公开信息
+            socket.on("public message rev", function (message) {
+                var pubMeg=$("#pubMsg");
+                var mes = pubMeg.val();
+                pubMeg.text(mes + message + "\n");
+            });
+
+            //监听私聊信息
+            socket.on("private message rev", function (message) {
+                var priMsg=$("#priMsg");
+                var mes = priMsg.val();
+                priMsg.text(mes + message + "\n");
+            });
+
+            //私聊按钮
+            $("#pribtn").click(function () {
+                var say = $("#prisay");
+                var selClient = $("#selClient option:selected");
+                if (!say.val()) return;
+                //获取列表中所选发送对象
+                var checkValue = selClient.val();
+                var checkText = selClient.text();
+                if(!checkValue){
+                    alert("选择私聊的人。");
+                    return;
+                }
+                socket.emit("private message send", loginSay(say.val()),checkValue,function(data){
+                    var priMsg=$("#priMsg");
+                    var mes = priMsg.val();
+                    priMsg.text(mes+data + "\n");
+                });
+                say.val("");
+
+            });
+
+            //公开聊按钮
+            $("#pubbtn").click(function () {
+                var say = $("#pubsay");
+                if (!say.val()) return;
+                socket.emit("public message send", loginSay(say.val()));
+                say.val("");
+            });
+        });
+
+
+        var sayfun = function(){
+            return function(text){
+                var loginId = $("#loginId").text();
+                return loginId + ": " + text;
+            };
+        };
+        //定义偏函数
+        var loginSay = sayfun();
+
+        function addSelClient(value, text) {
+            var option = $("<option>").val(value).text(text);
+            $("#selClient").append(option);
+        }
+block content
+    .col-md-12
+        .form-group
+            .row
+                .col-xs-12.col-md-12
+                    u
+                        h1#loginIdH.text-center
+            .row
+                .col-xs-12.col-md-4
+                    label 请选择发送对象
+                    select#selClient.form-control.input-lg(multiple)
+                .col-xs-6.col-md-4
+                    label 私聊屏
+                    textarea#priMsg.form-control(rows="20" readonly="readonly")
+                    input#prisay.form-control(type="text" name="prisay" placeholder="Say:")
+                    button#pribtn.btn.btn-lg.btn-primary.btn-block 发送
+                .col-xs-6.col-md-4
+                    label 公聊屏
+                    textarea#pubMsg.form-control(rows="20" readonly="readonly")
+                    input#pubsay.form-control(type="text" name="pubsay" placeholder="Say:")
+                    button#pubbtn.btn.btn-lg.btn-primary.btn-block 发送
